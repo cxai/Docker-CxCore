@@ -1,0 +1,115 @@
+# CxSAST run stack with Portainer for management.
+#
+# CxSAST - http://localhost:8080/CxWebClient/
+# Portainer - http://localhost:9000
+#
+# See README.md for more information
+
+version: "3.2"
+services:
+  db:
+    image: microsoft/mssql-server-linux
+    ports:
+        - "1433:1433"
+    volumes:
+        - cxdb:/var/opt/mssql
+    environment:
+        - "ACCEPT_EULA=Y"
+        - SA_PASSWORD=Passw0rd!
+        - MSSQL_PID=Express
+    networks:               # default overlay network works fine too, this is defined for easier troubleshooting
+        - internal
+    deploy:
+        placement:
+            constraints: [node.platform.os == linux]
+        restart_policy:
+            condition: on-failure # none    - if it's down keep it down
+            delay: 5s
+            max_attempts: 3
+
+  manager:
+    image: cxps/cxmanagers
+    volumes:
+        - cxlicense:c:/temp
+    networks:
+        - internal
+    deploy:
+        endpoint_mode: dnsrr
+        placement:
+            constraints: [node.platform.os == windows]
+        restart_policy:
+            condition: on-failure
+            delay: 5s
+            max_attempts: 3
+
+  engine:
+    image: cxps/cxengine
+    volumes:
+        - cxlicense:c:/temp
+    networks:
+        - internal
+    deploy:
+        endpoint_mode: dnsrr
+        placement:
+            constraints: [node.platform.os == windows]
+        restart_policy:
+            condition: on-failure
+            delay: 5s
+            max_attempts: 3
+
+  portal:
+    image: cxps/cxportal
+    volumes:
+        - cxlicense:c:/temp
+    ports:
+        # the host mode required because of dnsrr
+        - target: 80
+          published: 8080
+          protocol: tcp
+          mode: host
+        #- "9443:433"
+        #- "9080:80"
+        #- "80:80"
+    networks:
+        - internal
+    deploy:
+        endpoint_mode: dnsrr
+        placement:
+            constraints: [node.platform.os == windows]
+        restart_policy:
+            condition: on-failure
+            delay: 5s
+            max_attempts: 3
+
+  portainer:
+    image: portainer/portainer
+    volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+        - portainer_data:/data
+    ports:
+        - "9000:9000"
+    networks:
+        - internal
+    deploy:
+        placement:
+            constraints:
+                - node.role == manager
+                - node.platform.os == linux
+        restart_policy:
+            condition: on-failure
+            delay: 5s
+            max_attempts: 3
+
+# volumes need to be external so they are not re-created each time a stack is provisioned
+volumes:
+    cxdb:
+        external: true
+    cxlicense:
+        external: true
+    portainer_data:
+        external: true
+
+# the net is defined to be attachable for troubleshooting, not really necessary
+networks:
+    internal:
+        attachable: true
