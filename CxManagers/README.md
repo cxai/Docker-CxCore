@@ -1,1 +1,0 @@
-Checkmarx scan, job and system managers as a docker container

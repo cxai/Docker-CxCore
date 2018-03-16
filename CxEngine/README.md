@@ -1,1 +1,0 @@
-Checkmarx engine docker container

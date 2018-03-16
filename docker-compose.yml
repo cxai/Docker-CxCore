@@ -28,7 +28,7 @@ services:
             max_attempts: 3
 
   manager:
-    image: cxps/cxmanagers
+    image: cxai/cxmanagers
     volumes:
         - cxlicense:c:/temp
     networks:
@@ -43,7 +43,7 @@ services:
             max_attempts: 3
 
   engine:
-    image: cxps/cxengine
+    image: cxai/cxengine
     volumes:
         - cxlicense:c:/temp
     networks:
@@ -58,7 +58,7 @@ services:
             max_attempts: 3
 
   portal:
-    image: cxps/cxportal
+    image: cxai/cxportal
     volumes:
         - cxlicense:c:/temp
     ports:
