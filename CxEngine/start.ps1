@@ -1,43 +1,34 @@
 param(
 [Parameter(Mandatory=$false)]
+[string]$sast_server,
+
+[Parameter(Mandatory=$false)]
 [string]$sast_admin,
 
 [Parameter(Mandatory=$false)]
 [string]$sast_adminpwd
 )
 
-if ($null -eq $sast_admin -or $null -eq $sast_adminpwd -or $$sast_admin -eq '_' -or $$sast_adminpwd -eq '_') {
-  Write-Verbose "Please, provide SAST admin user name and password so this engine can be registered with the manager"
+if ($null -eq $sast_server -or $null -eq $sast_admin -or $null -eq $sast_adminpwd -or $sast_server -eq '_' -or $sast_admin -eq '_' -or $sast_adminpwd -eq '_') {
+  Write-Verbose "Please, provide SAST server name, admin user name and password so this engine can be registered"
   exit 1
 }
 
-# Check for license and it's correctness, print HID if not, start CxSAST if it's there.
+# NOTE The license code below is not necessary for the engine from 8.7 onward. Leaving it here for compatibility reasons
 if (!(Test-Path "c:\CxSAST\Licenses\license.cxl")) {
-  # first generate the HID, we'll need it later
-  #c:\CxSAST\HidGenerator.exe | out-null - does not work, hungs forever :(
-  Start-Process "c:\CxSAST\HidGenerator.exe"
-  # kind of a lame busy wait till hid generator is done
-  while (!(Test-Path "c:\CxSAST\HardwareId.txt")) {
-  	Start-Sleep -Seconds 1
-  }
-  # dont need anymore, kill it.
-  Get-Process | Where-Object { $_.Name -eq "HidGenerator" } | Select-Object -First 1 | Stop-Process
-  # now onto the license checks 
+  $hidall=(& "c:\CxSAST\HID\HID.exe") | out-string
   if (!(Test-Path "c:\temp\license.cxl")) {  
-  	Write-Host "Can not start CxSAST. Please provide a license.cxl file in c:\temp\ for the following HID:" -ForegroundColor red
-	cat c:\CxSAST\HardwareId.txt
+  	Write-Host "Please provide a license.cxl file for the following HID: $hidall" -ForegroundColor red
 	exit 1
   } else {
-	# check if the provided license is correct by searching for the trimmed HID inside cxl. cxl needs to be converted from utf32 to utf8
-	$hid=(Select-String -path .\HardwareId.txt -Pattern "#([^_]*)").Matches.Groups[1].Value
-	if (!((Get-content -Path "c:\temp\license.cxl") -match $hid)){    
-	 	Write-Host "Can not start CxSAST. license.cxl does not match the HID for this container:" -ForegroundColor red
-		cat c:\CxSAST\HardwareId.txt
+  	$hid=(Select-String -inputObject $hidall -Pattern "#([^_]*)").Matches.Groups[1].Value
+  	if (!((Get-content -Path "c:\temp\license.cxl") -match $hid)){    
+		Write-Host "Provided license.cxl does not match the HID for this container: $hidall" -ForegroundColor red
 		exit 1
-	} else {
+  	} else {
 		Write-Host "Deploying the license..." -ForegroundColor green
 		copy c:\temp\license.cxl c:\CxSAST\Licenses\license.cxl
-	}
+  	}
   }
 }
 # start the service
@@ -52,18 +43,26 @@ catch { throw "Timed out waiting for the service to start" }
 Write-Host "Started." -ForegroundColor green
 
 # Add to the list of available engines
-Write-Host "Joining CxSAST Engine..."
+Write-Host "Registering the CxSAST Engine..."
 
 #$person = @{username='admin@cx';password='admin'}
 #$admin=(convertto-json $person)  
 $admin="{username:'$sast_admin',password:'$sast_adminpwd'}"
-$JSONResponse=Invoke-RestMethod -uri http://manager/cxrestapi/auth/login -method post -body $admin -contenttype 'application/json' -sessionvariable sess
+$JSONResponse=Invoke-RestMethod -uri http://$sast_server/cxrestapi/auth/login -method post -body $admin -contenttype 'application/json' -sessionvariable sess
 if(!$JSONResponse){ throw "Could not authenticate" }
 
-$headers=@{"CXCSRFToken"=$sess.Cookies.GetCookies("http://manager/cxrestapi/auth/login")["CXCSRFToken"].Value}
-$JSONResponse=invoke-restmethod -uri http://manager/cxrestapi/sast/engineservers -method get -contenttype 'application/json' -headers $headers -WebSession $sess
-if(!$JSONResponse){ throw "Error listing servers" }
+$headers=@{"CXCSRFToken"=$sess.Cookies.GetCookies("http://$sast_server/cxrestapi/auth/login")["CXCSRFToken"].Value}
+#$JSONResponse=invoke-restmethod -uri http://$sast_server/cxrestapi/sast/engineservers -method get -contenttype 'application/json' -headers $headers -WebSession $sess
+#if(!$JSONResponse){ throw "Error listing servers" }
 
+$engine='{"name":"'+$(hostname)+'","uri":"http://'+$(hostname)+'/CxSourceAnalyzerEngineWCF/CxEngineWebSerices.svc","minLoc":0,"maxLoc":99999999,"isBlocked":false}'
+try { 
+   Invoke-RestMethod -uri http://$sast_server/cxrestapi/sast/engineservers -method post -body $engine -contenttype 'application/json' -headers $headers -WebSession $sess
+} catch {
+    Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
+    Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
+    throw "Could not register"
+} 
 
 # tailing log and checking the process state. Assuming the log is not here yet.
 $logfile="C:\CxSAST\Checkmarx Engine Server\Logs\Engine.log"

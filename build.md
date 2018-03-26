@@ -1,7 +1,15 @@
 # Building CxSAST on Docker
 
 ## Build architecture
+
+### Cross-platform
+![linux arch](assets/diagram.png)
+
 The procedure below describes a **cross platform** docker build and uses a Linux host for the DB and portainer and a virtual box [Windows Docker VM](https://app.vagrantup.com/StefanScherer/boxes/windows_2016_docker) for the rest of Checkmarx components. To run or build containers on the Linux host you will need a VM with Docker like [this one](https://github.com/alexivkin/windows_2016_core). It needs to be configured as described in the [Notes](#Notes) section.
+
+
+### Windows only
+![windows arch](assets/diagram001.png)
 
 You can run everything on just the windows docker host, but you will not be able to use docker swarm and portainer. To do that you will need to change the below procedure to:
 * Run [MSSQL Windows container](https://hub.docker.com/r/microsoft/mssql-server-windows-express/). It has slightly different setup from the Linux version. See notes below for more details
@@ -67,9 +75,9 @@ docker run --rm -it -e ACCEPT_EULA=Y microsoft/mssql-server-windows-express sqlc
 
 It should show four databases and the server name
 
-#### Build Cx managers image
+#### Build Cx Managers image
 
-`docker build -t cxai/cxmanagers --build-arg CX_DOWNLOAD_URL=http://$linuxhost:8000/CxSetup.exe --build-arg SQL_SERVER=$linuxhost --build-arg SQL_PWD=$sa_password --build-arg HID_DOWNLOAD_URL=http://$linuxhost:8000/HidGenerator.zip CxManagers`
+`docker build -t cxai/cxmanagers --build-arg CX_DOWNLOAD_URL=http://$linuxhost:8000/CxSetup.exe --build-arg SQL_SERVER=$linuxhost --build-arg SQL_PWD=$sa_password CxManagers`
 
 This will also populate the DB with the default schema. Check the logs on cxdb to make sure the db installation completed successfuly, otherwise you risk having weird startup errors for the Cx managers.
 
@@ -77,20 +85,23 @@ This will also populate the DB with the default schema. Check the logs on cxdb t
 
 Look for fatal errors during the DB creation.
 
-#### Build Cx portal image
+#### Build Cx Portal image
 
-`docker build -t cxai/cxportal --build-arg CX_DOWNLOAD_URL=http://$linuxhost:8000/CxSetup.exe --build-arg SQL_SERVER=$linuxhost --build-arg SQL_PWD=$sa_password --build-arg HID_DOWNLOAD_URL=http://$linuxhost:8000/HidGenerator.zip CxPortal`
+`docker build -t cxai/cxportal --build-arg CX_DOWNLOAD_URL=http://$linuxhost:8000/CxSetup.exe --build-arg SQL_SERVER=$linuxhost --build-arg SQL_PWD=$sa_password  CxPortal`
 
-#### Build Cx engine image
+#### Build Cx Engine image
 
-`docker build -t cxai/cxengine --build-arg CX_DOWNLOAD_URL=http://$linuxhost:8000/CxSetup.exe --build-arg SQL_SERVER=$linuxhost --build-arg SQL_PWD=$sa_password --build-arg HID_DOWNLOAD_URL=http://$linuxhost:8000/HidGenerator.zip CxEngine`
+`docker build -t cxai/cxengine --build-arg CX_DOWNLOAD_URL=http://$linuxhost:8000/CxSetup.exe --build-arg SQL_SERVER=$linuxhost --build-arg SQL_PWD=$sa_password CxEngine`
 
-#### Stop the builder and the database
+#### Stop the builder
 
+`docker stop cxbuilder`
+
+#### Take a backup of the DB
 ```
-export DOCKER_HOST=tcp://localhost
-docker stop cxbuilder
 docker stop cxdb
+docker run --rm -v cxdb:/from -v cxdb-backup:/to alpine ash -c "cp -av /from/* /to/"
+docker start cxdb
 ```
 
 ## Notes
@@ -128,7 +139,9 @@ if (!(Get-NetFirewallRule | where {$_.Name -eq "Dockerswarm4789"})) {
 To change to the Windows version of the MSSQL Express container run it with the following options:
 ```
 docker run --name sqlexpress -e 'ACCEPT_EULA=Y' -e 'MSSQL_PID=Express' -e 'MSSQL_SA_PASSWORD=password' -p 1433:1433 -e attach_dbs="[{'dbName':'CxDB','dbFiles':['C:\\DATA\\CxDB.mdf','C:\\DATA\\CxDB_log.ldf']},{'dbName':'CxActivity','dbFiles':['C:\\DATA\\CxActivity.mdf','C:\\DATA\\CxActivity_log.ldf']]
--v ./data:C:/DATA -d microsoft/mssql-server-linux:2017-latest
+-v ./data:C:/DATA -d microsoft/mssql-server-windows-express
 ```
 
 You will need to grab for CxDB an CxActivities from the mssql image after the CxManager the installation
+
+As of Dec 2017 Microsoft provides MSSQL windows docker images only in Express and Development versions. If you need Enterprise versions you will need to run MSSQL Linux docker images per Microsoft's [MSSQL Linux Container docs](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-configure-docker).

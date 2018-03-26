@@ -2,7 +2,7 @@ FROM microsoft/windowsservercore:latest as base
 
 LABEL description="CxSAST Portal docker image"
 LABEL maintainer="Alex Ivkin"
-LABEL version="1.1 alpha"
+LABEL version="1.1 beta"
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
@@ -11,7 +11,6 @@ ARG SQL_PWD
 ARG SQL_USER=sa
 
 ARG CX_DOWNLOAD_URL
-ARG HID_DOWNLOAD_URL
 
 VOLUME c:/temp
 EXPOSE 80 443
@@ -19,10 +18,6 @@ WORKDIR c:/CxSAST/
 
 # Disable telemetry
 RUN Set-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 0
-
-RUN Invoke-WebRequest $env:HID_DOWNLOAD_URL -OutFile hidgenerator.zip -UseBasicParsing ; \
-    Expand-Archive hidgenerator.zip -DestinationPath C:\CxSAST\ ; \
-    Remove-Item hidgenerator.zip ;
 
 RUN Invoke-WebRequest $env:CX_DOWNLOAD_URL -OutFile CxSetup.exe -UseBasicParsing ; \
     C:/CxSAST/CxSetup.exe /install /quiet ENGINE=0 MANAGER=0 WEB=1 AUDIT=0 INSTALLFOLDER="C:\CxSAST" INSTALLSHORTCUTS=0 SQLAUTH=1 SQLSERVER="$env:SQL_SERVER" SQLUSER="$env:SQL_USER" SQLPWD="$env:SQL_PWD" ; \

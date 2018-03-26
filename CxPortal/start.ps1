@@ -1,34 +1,22 @@
 # Check for license and it's correctness, print HID if not, start CxSAST if it's there.
 if (!(Test-Path "c:\CxSAST\Licenses\license.cxl")) {
-  # first generate the HID, we'll need it later
-  #c:\CxSAST\HidGenerator.exe | out-null - does not work, hungs forever :(
-  Start-Process "c:\CxSAST\HidGenerator.exe"
-  # kind of a lame busy wait till hid generator is done
-  while (!(Test-Path "c:\CxSAST\HardwareId.txt")) {
-  	Start-Sleep -Seconds 1
-  }
-  # dont need anymore, kill it.
-  Get-Process | Where-Object { $_.Name -eq "HidGenerator" } | Select-Object -First 1 | Stop-Process
-  # now onto the license checks 
+  $hidall=(& "c:\CxSAST\HID\HID.exe") | out-string
   if (!(Test-Path "c:\temp\license.cxl")) {  
-  	Write-Host "Can not start CxSAST. Please provide a license.cxl file in c:\temp\ for the following HID:" -ForegroundColor red
-	cat c:\CxSAST\HardwareId.txt
+  	Write-Host "Please provide a license.cxl file for the following HID: $hidall" -ForegroundColor red
 	exit 1
   } else {
-	# check if the provided license is correct by searching for the trimmed HID inside cxl. cxl needs to be converted from utf32 to utf8
-	$hid=(Select-String -path .\HardwareId.txt -Pattern "#([^_]*)").Matches.Groups[1].Value
-	if (!((Get-content -Path "c:\temp\license.cxl") -match $hid)){    
-	 	Write-Host "Can not start CxSAST. license.cxl does not match the HID for this container:" -ForegroundColor red
-		cat c:\CxSAST\HardwareId.txt
+  	$hid=(Select-String -inputObject $hidall -Pattern "#([^_]*)").Matches.Groups[1].Value
+  	if (!((Get-content -Path "c:\temp\license.cxl") -match $hid)){    
+		Write-Host "Provided license.cxl does not match the HID for this container: $hidall" -ForegroundColor red
 		exit 1
-	} else {
+  	} else {
 		Write-Host "Deploying the license..." -ForegroundColor green
 		copy c:\temp\license.cxl c:\CxSAST\Licenses\license.cxl
-	}
+  	}
   }
 }
 # start the service
-Write-Host "Starting CxSAST Portal..."
+Write-Host "Configuring API forwarders..."
 
 stop-Service "W3SVC"
 stop-Service "WAS"
@@ -45,10 +33,11 @@ Add-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' 
 Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/action" -name "url" -value "{C:1}://manager/{R:1}"
 Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/action" -name "type" -value "Rewrite"
 
-
 Add-Type -AssemblyName System.ServiceProcess -ErrorAction SilentlyContinue
 Start-Service "WAS" -WarningAction SilentlyContinue
 Start-Service "W3SVC" -WarningAction SilentlyContinue
+
+Write-Host "Starting CxSAST Portal..."
 
 $service = New-Object System.ServiceProcess.ServiceController("W3SVC")
 try { $service.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running,[System.TimeSpan]::FromSeconds(10)) }
