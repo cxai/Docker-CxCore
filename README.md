@@ -1,27 +1,24 @@
 # CxSAST on a Docker platform
-A modular, fast and up-to-date environment for running Checkmarx Static Application Security Testing solution as Docker containers.
+A modular, fast and up-to-date environment for running Checkmarx Static Application Security Testing solution as Docker containers. I.e. CxSAST running on Docker. If you are looking for the docker containers for various third-party systems that integrate with CxSAST look [here](https://github.com/cxai/Docker-CxIntegrations).
 
 ## About
-This is an **unofficial**, unsupported development release not intended for production. It is a proof of concept, to show that it's indeed possible to run it on Windows Docker Containers. It also has the following features:
+This is an **unofficial**, unsupported development release not intended for production. Treat it as a proof of concept to show that it's indeed possible to run it on Windows Docker Containers.
 
-* Cloud friendly - scalable and relocatable
-* You can scale up or down by adding and removing engine containers. Engines self-add themselves into the scan manager configuration.
-* Orchestrated startup and shutdown through a docker swarm, to ensure parts come up in a proper way and stay up
-* Database is stored in a docker volume that can be backed up and swapped for a different DB at any time
-* A Web GUI controller for all components, networks and volumes
+* Cloud friendly - deployable with a single command, fully modularized for redundancy and scalability
+* Instant startup and shutdown
+* Scale up or down by adding and removing engine containers. Engines self-add themselves into the scan manager configuration.
+* Database can be backed-up and swapped on the fly
+* A Web GUI (portainer) controller for all components, networks and volumes
 
-Following the Docker best practice CxSAST is split up into functional components - CxEngine, CxManagers, CxPortal. MSSQL is running in a separate container as well. This approach affords better scalability and HA, at a small cost of the networking overhead. It also conforms to the [Distributed Architecture](https://checkmarx.atlassian.net/wiki/spaces/KC/pages/79921199/Distributed+Architecture).
-
-Images:
+Docker images:
 * CxSAST Manager - Scan, job and system managers
 * CxSAST Portal - Web UI
 * CxSAST Engine - Scan engine
 * MSSQL Express - A custom build of the microsoft's linux mssql server with telemetry disabled
 
-If you are looking for the containers for various systems that integrate with Checkmarx SAST look [here](https://github.com/cxai/Docker-CxIntegrations).
+The build *does not* contain the Checkmarx installer or the license required to run CxSAST. You will need to download, unzip the installer separately and get the license before it can run. Read more in the [build section](build.md).
 
-
-The build *does not* contain the Checkmarx installer or the license required to run CxSAST. You will need to download, unzip the installer separately and get the license before it can run. Read more in the build section.
+Following the Docker best practice CxSAST is split up into functional components - CxEngine, CxManagers, CxPortal. MSSQL is running in a separate container as well. This approach affords better scalability and HA, at a small cost of the networking overhead. It also conforms to the [Distributed Architecture](https://checkmarx.atlassian.net/wiki/spaces/KC/pages/79921199/Distributed+Architecture).
 
 CxSAST runs inside docker containers based off a Microsoft's Windows Server Core image, with telemetry disabled by default.
 To run these containers on a Linux host you will need a VM with Docker like [this one](https://app.vagrantup.com/StefanScherer/boxes/windows_2016_docker) from Stefan Scherer.
@@ -114,15 +111,9 @@ HEALTHCHECK CMD powershell -command `
      else {return 1}; `
     } catch {return 1}
 ```
-## Known issues
+## Known limitations
 
-* When a manager is installed a non-existing engine is configured by default on localhost that needs to be deleted.
-
-# References
-* [Docker Swarm mode](https://docs.docker.com/get-started/part4)
-* [Docker Swarm Tutorial](https://docs.docker.com/engine/swarm/swarm-tutorial/)
-* [Docker storage drivers](https://docs.docker.com/engine/userguide/storagedriver/imagesandcontainers/#sharing-promotes-smaller-images)
-* [Deploying across mulitple hosts](https://docs.docker.com/engine/swarm/#feature-highlights)
-* [Services, swarms and stacks](https://docs.docker.com/get-started/part5/)
-* [Swarm example](https://github.com/docker/labs/blob/master/beginner/chapters/votingapp.md)
-* [Swarm networking](https://docs.docker.com/engine/swarm/networking/)
+* All traffic is plain text (non-ssl)
+* MSSQL password is saved into the images at the build time - should be later changed to a run time password
+* Admin passwords are hardcoded into the compose file. Should be moved to a swarm secret store.
+* Build phase is manual, but could be automated by using the build context in the docker-compose filev

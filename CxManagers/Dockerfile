@@ -27,4 +27,7 @@ RUN Invoke-WebRequest $env:CX_DOWNLOAD_URL -OutFile CxSetup.exe -UseBasicParsing
 
 COPY start.ps1 c:/CxSAST/
 
+# Optional db hostname override at the run-time to be able to run both manually and as a swarm
+ENV sast_db _
+
 CMD c:/CxSAST/start.ps1

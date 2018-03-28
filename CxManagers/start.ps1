@@ -15,6 +15,13 @@ if (!(Test-Path "c:\CxSAST\Licenses\license.cxl")) {
   	}
   }
 }
+if (($null -ne $env:sast_db) -and ($env:sast_db -ne '_')) {
+	Write-Host "Setting DB to $env:sast_db"
+	(Get-Content C:\CxSAST\Configuration\DBConnectionData.config) -replace "Source=[^;]*","Source=$env:sast_db" | out-file -encoding ascii C:\CxSAST\Configuration\DBConnectionData.config 
+} else {
+	$db=(Get-Content C:\CxSAST\Configuration\DBConnectionData.config | Select-String -Pattern "Source=[^;]*").Matches.Groups[1].Value
+	Write-Host "Running with DB $db"
+}
 # start the service
 # follow the correct startup sequence, although if job manager is started first it will just kick off the others
 Write-Host "Starting CxSAST Scans Manager ..."
@@ -41,7 +48,6 @@ catch { throw "Timed out waiting for the CxSystemManager service to start" }
 Write-Host "Started." -ForegroundColor green
 
 # Check if there is a localhost engine registered and unregister it, since none is installed on this container
-# https://checkmarx.atlassian.net/wiki/spaces/KC/pages/135594133/Engine+Auto+Scaling+v8.5.0+and+up
 <#Write-Host "Removing default localhost engine record..."
 $admin="{username:'$sast_admin',password:'$sast_adminpwd'}"
 $JSONResponse=Invoke-RestMethod -uri http://$sast_server/cxrestapi/auth/login -method post -body $admin -contenttype 'application/json' -sessionvariable sess

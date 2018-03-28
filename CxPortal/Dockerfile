@@ -38,4 +38,7 @@ RUN Invoke-WebRequest http://download.microsoft.com/download/C/A/5/CA5FAD87-1E93
     Remove-Item requestRouter_amd64.msi ;
 
 COPY start.ps1 c:/CxSAST/
+
+ENV sast_manager _
+
 CMD c:/CxSAST/start.ps1

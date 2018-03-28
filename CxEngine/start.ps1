@@ -9,8 +9,8 @@ param(
 [string]$sast_adminpwd
 )
 
-if ($null -eq $sast_server -or $null -eq $sast_admin -or $null -eq $sast_adminpwd -or $sast_server -eq '_' -or $sast_admin -eq '_' -or $sast_adminpwd -eq '_') {
-  Write-Verbose "Please, provide SAST server name, admin user name and password so this engine can be registered"
+if (($null -eq $sast_server) -or ($null -eq $sast_admin) -or ($null -eq $sast_adminpwd) -or ($sast_server -eq '_') -or ($sast_admin -eq '_') -or ($sast_adminpwd -eq '_')) {
+  Write-Host "Please, provide SAST server name, admin user name and password so this engine can be registered"  -ForegroundColor red
   exit 1
 }
 
@@ -43,25 +43,51 @@ catch { throw "Timed out waiting for the service to start" }
 Write-Host "Started." -ForegroundColor green
 
 # Add to the list of available engines
-Write-Host "Registering the CxSAST Engine..."
+Write-Host "Reviewing CxSAST Engine registration with $sast_server..."
 
 #$person = @{username='admin@cx';password='admin'}
 #$admin=(convertto-json $person)  
 $admin="{username:'$sast_admin',password:'$sast_adminpwd'}"
-$JSONResponse=Invoke-RestMethod -uri http://$sast_server/cxrestapi/auth/login -method post -body $admin -contenttype 'application/json' -sessionvariable sess
-if(!$JSONResponse){ throw "Could not authenticate" }
-
+try {
+   $JSONResponse=Invoke-RestMethod -uri http://$sast_server/cxrestapi/auth/login -method post -body $admin -contenttype 'application/json' -sessionvariable sess
+} catch { 
+    Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
+    Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
+    throw "Could not authenticate" 
+}
+# grab the token
 $headers=@{"CXCSRFToken"=$sess.Cookies.GetCookies("http://$sast_server/cxrestapi/auth/login")["CXCSRFToken"].Value}
-#$JSONResponse=invoke-restmethod -uri http://$sast_server/cxrestapi/sast/engineservers -method get -contenttype 'application/json' -headers $headers -WebSession $sess
-#if(!$JSONResponse){ throw "Error listing servers" }
-
-$engine='{"name":"'+$(hostname)+'","uri":"http://'+$(hostname)+'/CxSourceAnalyzerEngineWCF/CxEngineWebSerices.svc","minLoc":0,"maxLoc":99999999,"isBlocked":false}'
+# get the list of all configured engines
 try { 
-   Invoke-RestMethod -uri http://$sast_server/cxrestapi/sast/engineservers -method post -body $engine -contenttype 'application/json' -headers $headers -WebSession $sess
+   $JSONResponse=invoke-restmethod -uri http://$sast_server/cxrestapi/sast/engineservers -method get -contenttype 'application/json' -headers $headers -WebSession $sess
 } catch {
     Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
     Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
-    throw "Could not register"
+    throw "Error listing servers" 
+} 
+# iterate over the names of the servers
+$addnew=$true
+foreach($engine in $JSONResponse) {
+   if ($engine.name -eq 'Localhost'){
+	Write-Host "Localhost engine is registered. You might want to remove it." -ForegroundColor yellow
+   }
+   if ($engine.name -eq $(hostname)){
+	Write-Host "$(hostname) is already registered"
+	$addnew=$false
+	break	
+   }
+}
+# see if we need to add ourselves
+if ($addnew) {
+   Write-Host "Registering the CxSAST Engine $(hostname)..."
+   $engine='{"name":"'+$(hostname)+'","uri":"http://'+$(hostname)+'/CxSourceAnalyzerEngineWCF/CxEngineWebServices.svc","minLoc":0,"maxLoc":99999999,"isBlocked":false}'
+   try { 
+   	$JSONResponse=Invoke-RestMethod -uri http://$sast_server/cxrestapi/sast/engineservers -method post -body $engine -contenttype 'application/json' -headers $headers -WebSession $sess
+   } catch {
+   	Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
+   	Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
+   	throw "Could not register"
+   }
 } 
 
 # tailing log and checking the process state. Assuming the log is not here yet.

@@ -24,11 +24,11 @@ RUN Invoke-WebRequest $env:CX_DOWNLOAD_URL -OutFile CxSetup.exe -UseBasicParsing
     Wait-Process CxSetup ; \
     Remove-Item C:/CxSAST/CxSetup.exe ;
 
-COPY start.ps1 c:/CxSAST/
-
 # Placeholders for the SAST variables provided at runtime to configure the engine into the manager
-ENV $sast_server _
+ENV sast_server _
 ENV sast_admin _
 ENV sast_adminpwd _
 
-CMD c:/CxSAST/start.ps1 -sast_admin $env:sast_admin -sast_adminpwd $env:sast_adminpwd
+COPY start.ps1 c:/CxSAST/
+
+CMD c:/CxSAST/start.ps1 -sast_server $env:sast_server -sast_admin $env:sast_admin -sast_adminpwd $env:sast_adminpwd

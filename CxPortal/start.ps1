@@ -15,28 +15,31 @@ if (!(Test-Path "c:\CxSAST\Licenses\license.cxl")) {
   	}
   }
 }
+# check if forwarders need to be configured (first start vs restarted container)
+if (! (Get-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/proxy" -name 'enabled').value ) {
+	if (($null -eq $env:sast_manager) -or ($env:sast_manager -eq '_')) {
+		Write-Host "Missing sast_manager environment variable to configure API forwarders..."  -ForegroundColor red
+		exit 1
+	}
+	Write-Host "Configuring API forwarders to $env:sast_manager ..."
+	stop-Service "W3SVC"
+	stop-Service "WAS"
+	Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/proxy" -name "enabled" -value "True"
+	Add-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules" -name "." -value @{name='ReverseProxyInboundRule1';stopProcessing='True'}
+	Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule1']/match" -name "url" -value ".*(cxwebinterface/.*)"
+	Add-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule1']/conditions" -name "." -value @{input='{CACHE_URL}';pattern='^(https?)://'}
+	Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule1']/action" -name "url" -value "{C:1}://$env:sast_manager/{R:1}"
+	Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule1']/action" -name "type" -value "Rewrite"
+	Add-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules" -name "." -value @{name='ReverseProxyInboundRule2';stopProcessing='True'}
+	Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/match" -name "url" -value ".*(cxrestapi/.*)"
+	Add-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/conditions" -name "." -value @{input='{CACHE_URL}';pattern='^(https?)://'}
+	Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/action" -name "url" -value "{C:1}://$env:sast_manager/{R:1}"
+	Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/action" -name "type" -value "Rewrite"
+	Add-Type -AssemblyName System.ServiceProcess -ErrorAction SilentlyContinue
+	Start-Service "WAS" -WarningAction SilentlyContinue
+	Start-Service "W3SVC" -WarningAction SilentlyContinue
+}
 # start the service
-Write-Host "Configuring API forwarders..."
-
-stop-Service "W3SVC"
-stop-Service "WAS"
-
-Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/proxy" -name "enabled" -value "True"
-Add-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules" -name "." -value @{name='ReverseProxyInboundRule1';stopProcessing='True'}
-Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule1']/match" -name "url" -value ".*(cxwebinterface/.*)"
-Add-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule1']/conditions" -name "." -value @{input='{CACHE_URL}';pattern='^(https?)://'}
-Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule1']/action" -name "url" -value "{C:1}://manager/{R:1}"
-Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule1']/action" -name "type" -value "Rewrite"
-Add-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules" -name "." -value @{name='ReverseProxyInboundRule2';stopProcessing='True'}
-Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/match" -name "url" -value ".*(cxrestapi/.*)"
-Add-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/conditions" -name "." -value @{input='{CACHE_URL}';pattern='^(https?)://'}
-Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/action" -name "url" -value "{C:1}://manager/{R:1}"
-Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter "system.webServer/rewrite/rules/rule[@name='ReverseProxyInboundRule2']/action" -name "type" -value "Rewrite"
-
-Add-Type -AssemblyName System.ServiceProcess -ErrorAction SilentlyContinue
-Start-Service "WAS" -WarningAction SilentlyContinue
-Start-Service "W3SVC" -WarningAction SilentlyContinue
-
 Write-Host "Starting CxSAST Portal..."
 
 $service = New-Object System.ServiceProcess.ServiceController("W3SVC")

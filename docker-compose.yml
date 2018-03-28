@@ -1,6 +1,6 @@
 # CxSAST run stack with Portainer for management.
 #
-# CxSAST - http://localhost:8080/CxWebClient/
+# CxSAST - http://localhost:8000/CxWebClient/
 # Portainer - http://localhost:9000
 #
 # See README.md for more information
@@ -8,15 +8,13 @@
 version: "3.2"
 services:
   db:
-    image: microsoft/mssql-server-linux
+    image: cxai/cxdb
     ports:
         - "1433:1433"
     volumes:
         - cxdb:/var/opt/mssql
     environment:
-        - "ACCEPT_EULA=Y"
         - SA_PASSWORD=Passw0rd!
-        - MSSQL_PID=Express
     networks:               # default overlay network works fine too, this is defined for easier troubleshooting
         - internal
     deploy:
@@ -33,6 +31,8 @@ services:
         - cxlicense:c:/temp
     networks:
         - internal
+    environment:
+        - sast_db=db
     deploy:
         endpoint_mode: dnsrr
         placement:
@@ -41,21 +41,8 @@ services:
             condition: on-failure
             delay: 5s
             max_attempts: 3
-
-  engine:
-    image: cxai/cxengine
-    volumes:
-        - cxlicense:c:/temp
-    networks:
-        - internal
-    deploy:
-        endpoint_mode: dnsrr
-        placement:
-            constraints: [node.platform.os == windows]
-        restart_policy:
-            condition: on-failure
-            delay: 5s
-            max_attempts: 3
+    depends_on:
+        - "db"
 
   portal:
     image: cxai/cxportal
@@ -64,12 +51,14 @@ services:
     ports:
         # the host mode required because of dnsrr
         - target: 80
-          published: 8080
+          published: 8000
           protocol: tcp
           mode: host
         #- "9443:433"
         #- "9080:80"
         #- "80:80"
+    environment:
+        - sast_manager=manager
     networks:
         - internal
     deploy:
@@ -80,12 +69,36 @@ services:
             condition: on-failure
             delay: 5s
             max_attempts: 3
+    depends_on:
+        - "db"
+
+  engine:
+    image: cxai/cxengine
+    volumes:
+        - cxlicense:c:/temp
+    environment:
+        - sast_server=manager
+        - sast_admin=admin@cx
+        - sast_adminpwd=admin
+    hostname: engine
+    networks:
+        - internal
+    deploy:
+        endpoint_mode: dnsrr
+        placement:
+            constraints: [node.platform.os == windows]
+        restart_policy:
+            condition: on-failure
+            delay: 5s
+            max_attempts: 3
+    depends_on:
+        - "manager"
 
   portainer:
     image: portainer/portainer
     volumes:
         - /var/run/docker.sock:/var/run/docker.sock
-        - portainer_data:/data
+        - portainer:/data
     ports:
         - "9000:9000"
     networks:
@@ -109,7 +122,7 @@ volumes:
     portainer_data:
         external: true
 
-# the net is defined to be attachable for troubleshooting, not really necessary
+# the net is defined to be attachable for troubleshooting, not really necessary otherwise
 networks:
     internal:
         attachable: true
