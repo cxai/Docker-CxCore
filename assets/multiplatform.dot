@@ -1,0 +1,103 @@
+digraph WindowsDocker {
+compound=true
+  graph [
+  	#center = true
+     	rankdir = BT
+  	#label="Linux Docker environment"
+        #bgcolor="#f4f4fa"
+        #style="dotted, filled"
+        style=invis
+        #fillcolor="#FFFFFF"
+        fontname="Noto"
+        fontcolor=white
+        ranksep="0.1"
+  ]
+  node [ style="filled" shape=box fillcolor="#526876" fontname="Noto" fontcolor=white fixedsize=true width=2.5 ]
+  # node [fixedsize=true,width=0.75]
+  
+  subgraph cluster_l {
+  	label="Linux Docker Swarm Manager"
+    style="dotted"
+    fontcolor="#284455"
+	l [label = "Linux Kernel" fixedsize=true width=5.5 style="filled,rounded" fillcolor="#284455"]
+	l -> l1 [ltail=cluster_l1 style=invis]
+    l -> l2 [ltail=cluster_l2 style=invis] 
+  subgraph cluster_l1 {
+ 	label = "cxai/cxdb"
+ 	style="filled,rounded"
+        fontcolor=white
+        #style="invis"
+        fillcolor="#284455"
+        #ranksep=0.05
+        #nodesep=0.01
+  	#node [shape=oval fillcolor="#FFFFFF" penwidth=3]
+  	l1 [label="Ubuntu Linux" style="dashed, filled" fillcolor="#405465"]
+  	mssql [label="Microsoft SQL Server"]
+  	l1 -> mssql [style=invis]
+    }
+    subgraph cluster_l2 {
+ 	label = "portainer/portainer"
+ 	style="filled,rounded"
+        fontcolor=white
+        #style="invis"
+        fillcolor="#284455"
+        #ranksep=0.05
+        #nodesep=0.01
+  	#node [shape=oval fillcolor="#FFFFFF" penwidth=3]
+  	l2 [label="Alpine Linux" style="dashed, filled" fillcolor="#405465"]
+  	portainer [label="Portainer.io"]
+  	l2 -> portainer [style=invis]
+    }
+  }
+  
+  subgraph cluster_w {
+  	label="Windows Docker Swarm Node"
+    style="dotted"
+    fontcolor="#284455"
+
+	k [label = "Windows Kernel" fixedsize=true width=8.5 style="filled,rounded" fillcolor="#284455"]
+	k -> c1 [ltail=cluster_1 style=invis]
+    k -> c2 [ltail=cluster_2 style=invis] 
+    k -> c3 [ltail=cluster_3 style=invis] 
+
+  subgraph cluster_1 {
+ 	label = "cxai/cxmanager"
+ 	style="filled,rounded"
+        fontcolor=white
+        #style="invis"
+        fillcolor="#284455"
+        #ranksep=0.05
+        #nodesep=0.01
+  	#node [shape=oval fillcolor="#FFFFFF" penwidth=3]
+  	c1 [label="Windows Server Core" style="dashed, filled" fillcolor="#405465"]
+  	c1 -> JobManager -> ScanManager -> SystemManager [style=invis]
+  	
+  }
+  subgraph cluster_2 {
+        fontcolor=white
+ 	label = "cxai/cxportal"
+        style="filled, rounded"
+        fillcolor="#284455"
+        #ranksep=0.05
+        #nodesep=0.01
+          fontname="Noto"
+  	blank [style=invis]
+  	c2  [label="Windows Server Core" style="dashed, filled" fillcolor="#405465"]
+  	c2 -> "IIS" -> CxPortal -> blank [style=invis];
+  }
+  subgraph cluster_3 {
+ 	label = "cxai/cxengine"
+        fontcolor=white
+        style="filled, rounded"
+        fillcolor="#284455"
+        #ranksep=0.05
+        #nodesep=0.01
+          fontname="Noto"
+  	b2 [style=invis]
+  	b3 [style=invis]
+  	c3 [label="Windows Server Core" style="dashed, filled" fillcolor="#405465"]
+  	c3 -> "Engine" -> b2 -> b3 [style=invis];
+  }
+  }
+    
+}
