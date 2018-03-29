@@ -5,14 +5,14 @@
 ### Cross-platform
 ![linux arch](assets/diagram.png)
 
-The procedure below describes a **cross platform** docker build and uses a Linux host for the DB and portainer and a virtual box [Windows Docker VM](https://app.vagrantup.com/StefanScherer/boxes/windows_2016_docker) for the rest of Checkmarx components. To run or build containers on the Linux host you will need a VM with Docker like [this one](https://github.com/alexivkin/windows_2016_core). It needs to be configured as described in the [Notes](#Notes) section.
+The procedure below describes a **cross platform** docker build and uses a Linux host for the DB and portainer and a virtual box [Windows Docker VM](https://app.vagrantup.com/StefanScherer/boxes/windows_2016_docker) for the rest of Checkmarx components. To run or build containers on the Linux host you will need a VM with Docker like [this one](https://github.com/alexivkin/windows_2016_core). It needs to be configured as described in the [Notes](#notes) section.
 
 
 ### Windows only
 ![windows arch](assets/diagram001.png)
-Windows-only build is much simpler because it does not use docker swarm, since it's on one node only. Moreover docker it can only be managed from a Linux docker host. To do that you will need to change the below procedure to:
+Windows-only build is much simpler because it does not use docker swarm and is on one node only. To build on windows you will need to change the below procedure to:
 * Run [MSSQL Windows container](https://hub.docker.com/r/microsoft/mssql-server-windows-express/). It has slightly different setup from the Linux version. See notes below for more details.
-* Change bash for the appropriate powershell commands. For more see [below](#Running everything on a docker windows host).
+* Change bash for the appropriate powershell commands. For more see [below](#running-everything-on-a-docker-windows-host).
 
 ## Cross-platform build
 This build makes a full use of the docker hostname resolution and the swarm overlay network to resolve container names across linux and windows nodes, so you don't have to worry about container IPs. As any cross-platform it's much more complex than a homogeneous platform build would be.
@@ -31,9 +31,13 @@ This build makes a full use of the docker hostname resolution and the swarm over
 `docker network create -d overlay --attachable build-net`
 
 * Get the network created on the windows host
-There is probably a bug causing instability in an overlay network between a swarm linux manager and a swarm windows node. The swarm node may occasionally stop responding to ack-s, causing it to be listed as failed and having all cross-node traffic to be dropped. To make the network more-or-less stable you need to start an overlay-connected container *directly* on the windows host using the windows docker client (i.e. not the linux client with DOCKER_HOST set). So:
+There is probably a bug causing instability in an overlay network between a swarm linux manager and a swarm windows node. The swarm node may occasionally stop responding to ack-s, causing it to be listed as failed and having all cross-node traffic to be dropped. To make the network more-or-less stable you need to start an overlay-connected container *directly* on the windows host using the windows docker client. So:
  * Login into the windows docker hosts
  * Run `docker run --rm -it --network build-net microsoft/nanoserver powershell`
+ If it fails keep trying till it works. Bugs logged for it:  [1](https://github.com/docker/swarm/issues/2161),
+ [2](https://github.com/docker/swarm/issues/2687),
+ [3](https://github.com/moby/moby/issues/29024).
+To make it work start a windows continer right after the windows node drops. When it rejoins there is a period of time when the network works and if a container is bound during that time, the network will continue to work.
 
 #### Build the builder
 
@@ -103,7 +107,7 @@ Look for fatal errors during the DB creation.
 
 #### Build Cx Engine image
 
-`docker build -t cxai/cxengine --build-arg CX_DOWNLOAD_URL=http://cxbuilder:8000/CxSetup.exe --build-arg SQL_SERVER=cxdb --build-arg SQL_PWD=$sa_password --network build-net CxEngine`
+`docker build -t cxai/cxengine --build-arg CX_DOWNLOAD_URL=http://cxbuilder:8000/CxSetup.exe --network build-net CxEngine`
 
 #### Teardown the build environment
 

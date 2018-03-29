@@ -1,34 +1,16 @@
-param(
-[Parameter(Mandatory=$false)]
-[string]$sast_server,
-
-[Parameter(Mandatory=$false)]
-[string]$sast_admin,
-
-[Parameter(Mandatory=$false)]
-[string]$sast_adminpwd
-)
-
-if (($null -eq $sast_server) -or ($null -eq $sast_admin) -or ($null -eq $sast_adminpwd) -or ($sast_server -eq '_') -or ($sast_admin -eq '_') -or ($sast_adminpwd -eq '_')) {
-  Write-Host "Please, provide SAST server name, admin user name and password so this engine can be registered"  -ForegroundColor red
-  exit 1
-}
-
-# NOTE The license code below is not necessary for the engine from 8.7 onward. Leaving it here for compatibility reasons
+# NOTE The license code below is not necessary for the engine. It just warns and continues
 if (!(Test-Path "c:\CxSAST\Licenses\license.cxl")) {
   $hidall=(& "c:\CxSAST\HID\HID.exe") | out-string
   if (!(Test-Path "c:\temp\license.cxl")) {  
-  	Write-Host "Please provide a license.cxl file for the following HID: $hidall" -ForegroundColor red
-	exit 1
+  	Write-Host "Warning: There is no license file. HID: $hidall" -ForegroundColor yellow
   } else {
   	$hid=(Select-String -inputObject $hidall -Pattern "#([^_]*)").Matches.Groups[1].Value
   	if (!((Get-content -Path "c:\temp\license.cxl") -match $hid)){    
-		Write-Host "Provided license.cxl does not match the HID for this container: $hidall" -ForegroundColor red
-		exit 1
+		Write-Host "Warning: The provided license.cxl does not match the HID for this container: $hidall" -ForegroundColor yellow
   	} else {
 		Write-Host "Deploying the license..." -ForegroundColor green
-		copy c:\temp\license.cxl c:\CxSAST\Licenses\license.cxl
   	}
+	copy c:\temp\license.cxl c:\CxSAST\Licenses\license.cxl
   }
 }
 # start the service
@@ -42,54 +24,58 @@ catch { throw "Timed out waiting for the service to start" }
 
 Write-Host "Started." -ForegroundColor green
 
+# check if needs to be registered with a manager
+if (($null -eq $env:sast_server) -or ($null -eq $env:sast_admin) -or ($null -eq $env:sast_adminpwd) -or ($env:sast_server -eq '_') -or ($env:sast_admin -eq '_') -or ($env:sast_adminpwd -eq '_')) {
+    Write-Host "CxSAST server name, admin user name or password is not specified. Will not registers this engine."  -ForegroundColor yellow
+} else {
 # Add to the list of available engines
-Write-Host "Reviewing CxSAST Engine registration with $sast_server..."
+    Write-Host "Reviewing CxSAST Engine registration with $env:sast_server..."
 
-#$person = @{username='admin@cx';password='admin'}
-#$admin=(convertto-json $person)  
-$admin="{username:'$sast_admin',password:'$sast_adminpwd'}"
-try {
-   $JSONResponse=Invoke-RestMethod -uri http://$sast_server/cxrestapi/auth/login -method post -body $admin -contenttype 'application/json' -sessionvariable sess
-} catch { 
-    Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
-    Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
-    throw "Could not authenticate" 
+    #$person = @{username='admin@cx';password='admin'}
+    #$admin=(convertto-json $person)  
+    $admin="{username:'$env:sast_admin',password:'$env:sast_adminpwd'}"
+    try {
+       $JSONResponse=Invoke-RestMethod -uri http://$env:sast_server/cxrestapi/auth/login -method post -body $admin -contenttype 'application/json' -sessionvariable sess
+    } catch { 
+        Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
+        Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
+        throw "Could not authenticate" 
+    }
+    # grab the token
+    $headers=@{"CXCSRFToken"=$sess.Cookies.GetCookies("http://$env:sast_server/cxrestapi/auth/login")["CXCSRFToken"].Value}
+    # get the list of all configured engines
+    try { 
+       $JSONResponse=invoke-restmethod -uri http://$env:sast_server/cxrestapi/sast/engineservers -method get -contenttype 'application/json' -headers $headers -WebSession $sess
+    } catch {
+        Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
+        Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
+        throw "Error listing servers" 
+    } 
+    # iterate over the names of the servers
+    $addnew=$true
+    foreach($engine in $JSONResponse) {
+       if ($engine.name -eq 'Localhost'){
+    	Write-Host "Localhost engine is registered. You might want to remove it." -ForegroundColor yellow
+       }
+       if ($engine.name -eq $(hostname)){
+    	Write-Host "$(hostname) is already registered"
+    	$addnew=$false
+    	break	
+       }
+    }
+    # see if we need to add ourselves
+    if ($addnew) {
+       Write-Host "Registering the CxSAST Engine $(hostname)..."
+       $engine='{"name":"'+$(hostname)+'","uri":"http://'+$(hostname)+'/CxSourceAnalyzerEngineWCF/CxEngineWebServices.svc","minLoc":0,"maxLoc":99999999,"isBlocked":false}'
+       try { 
+       	$JSONResponse=Invoke-RestMethod -uri http://$env:sast_server/cxrestapi/sast/engineservers -method post -body $engine -contenttype 'application/json' -headers $headers -WebSession $sess
+       } catch {
+       	Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
+       	Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
+       	throw "Could not register"
+       }
+    } 
 }
-# grab the token
-$headers=@{"CXCSRFToken"=$sess.Cookies.GetCookies("http://$sast_server/cxrestapi/auth/login")["CXCSRFToken"].Value}
-# get the list of all configured engines
-try { 
-   $JSONResponse=invoke-restmethod -uri http://$sast_server/cxrestapi/sast/engineservers -method get -contenttype 'application/json' -headers $headers -WebSession $sess
-} catch {
-    Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
-    Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
-    throw "Error listing servers" 
-} 
-# iterate over the names of the servers
-$addnew=$true
-foreach($engine in $JSONResponse) {
-   if ($engine.name -eq 'Localhost'){
-	Write-Host "Localhost engine is registered. You might want to remove it." -ForegroundColor yellow
-   }
-   if ($engine.name -eq $(hostname)){
-	Write-Host "$(hostname) is already registered"
-	$addnew=$false
-	break	
-   }
-}
-# see if we need to add ourselves
-if ($addnew) {
-   Write-Host "Registering the CxSAST Engine $(hostname)..."
-   $engine='{"name":"'+$(hostname)+'","uri":"http://'+$(hostname)+'/CxSourceAnalyzerEngineWCF/CxEngineWebServices.svc","minLoc":0,"maxLoc":99999999,"isBlocked":false}'
-   try { 
-   	$JSONResponse=Invoke-RestMethod -uri http://$sast_server/cxrestapi/sast/engineservers -method post -body $engine -contenttype 'application/json' -headers $headers -WebSession $sess
-   } catch {
-   	Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
-   	Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
-   	throw "Could not register"
-   }
-} 
-
 # tailing log and checking the process state. Assuming the log is not here yet.
 $logfile="C:\CxSAST\Checkmarx Engine Server\Logs\Engine.log"
 $start=0

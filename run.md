@@ -89,7 +89,7 @@ Note, you can ignore the license errors if the services started correctly. The e
 
 #### Access portal to set admin passwords
 Login to the manager and set the admin password.
-http://<windows docker host ip>/CxWebClient/
+`http://<windows docker host ip>/CxWebClient/`
 
 #### Start the engine
 

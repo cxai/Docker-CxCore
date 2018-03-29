@@ -31,4 +31,4 @@ ENV sast_adminpwd _
 
 COPY start.ps1 c:/CxSAST/
 
-CMD c:/CxSAST/start.ps1 -sast_server $env:sast_server -sast_admin $env:sast_admin -sast_adminpwd $env:sast_adminpwd
+CMD c:/CxSAST/start.ps1

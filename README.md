@@ -2,19 +2,18 @@
 A modular, fast and up-to-date environment for running Checkmarx Static Application Security Testing solution as Docker containers. I.e. CxSAST running on Docker. If you are looking for the docker containers for various third-party systems that integrate with CxSAST look [here](https://github.com/cxai/Docker-CxIntegrations).
 
 ## About
-This is an **unofficial**, unsupported development release not intended for production. Treat it as a proof of concept to show that it's indeed possible to run it on Windows Docker Containers.
+This is an **unofficial**, unsupported development release not intended for production. Treat it as a proof of concept to show that it's indeed possible to run CxSAST on Windows Docker Containers.
 
 * Cloud friendly - deployable with a single command, fully modularized for redundancy and scalability
-* Instant startup and shutdown
+* Fully dockerized - instant startup and shutdown, each component in its own container
 * Scale up or down by adding and removing engine containers. Engines self-add themselves into the scan manager configuration.
-* Database can be backed-up and swapped on the fly
-* A Web GUI (portainer) controller for all components, networks and volumes
+* A database is persisted through container changes and upgrades
 
 Docker images:
 * CxSAST Manager - Scan, job and system managers
 * CxSAST Portal - Web UI
 * CxSAST Engine - Scan engine
-* MSSQL Express - A custom build of the microsoft's linux mssql server with telemetry disabled
+* CxSAST DB - A custom build of the Microsoft's MSSQL server for Linux with telemetry disabled
 
 The build *does not* contain the Checkmarx installer or the license required to run CxSAST. You will need to download, unzip the installer separately and get the license before it can run. Read more in the [build section](build.md).
 
@@ -29,8 +28,6 @@ First you need build the images required to run CxSAST. They are not posted on d
 Running CxSAST in containers is best done with the help of a docker swarm orchestrator. You can also start them up manually. Detailed description is in [run.md](run.md).
 
 ## Containers
-![linux arch](images/diagram.png)
-
 Linux containers:
 * CxBuilder - A build-time helper container. For now this is just a web server, serving whatever is in a volume mapped to /www folder. It is not used at run time.
 * CxDB - The latest image of Microsoft SQL Linux server with telemetry turned off and pre-configured as the Express version.
